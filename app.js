@@ -10,6 +10,12 @@ import {
   collection,
   addDoc,
   serverTimestamp,
+  onSnapshot,
+  query,
+  orderBy,
+  doc,
+  updateDoc,
+  deleteDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import { firebaseConfig } from "./config.js";
@@ -27,7 +33,7 @@ const db = getFirestore(firebaseApp);
 const ui = {
   views: {
     login: document.querySelector('[data-view="login"]'),
-    form: document.querySelector('[data-view="form"]'),
+    dashboard: document.querySelector('[data-view="dashboard"]'),
   },
   sessionLabel: document.querySelector("[data-session-label]"),
   sessionSubtitle: document.querySelector("[data-session-subtitle]"),
@@ -41,9 +47,14 @@ const ui = {
   resetBtn: document.querySelector("[data-reset-btn]"),
   submitBtn: document.querySelector("[data-submit-btn]"),
   loginBtn: document.querySelector("[data-login-btn]"),
+  listingsContainer: document.querySelector("[data-listings]"),
+  listingCount: document.querySelector("[data-listing-count]"),
+  formSubtitle: document.querySelector("[data-form-subtitle]"),
 };
 
 let toastTimeout;
+let unsubscribeListings;
+let editingListingId = null;
 
 const showView = (viewName) => {
   Object.entries(ui.views).forEach(([name, el]) => {
@@ -56,29 +67,25 @@ const updateSessionCopy = (user) => {
   if (!ui.sessionLabel || !ui.sessionSubtitle) return;
   if (user) {
     ui.sessionLabel.textContent = `Connecté : ${user.email}`;
-    ui.sessionSubtitle.textContent = "Vous pouvez publier une annonce.";
+    ui.sessionSubtitle.textContent = "Gestion des annonces disponible.";
   } else {
     ui.sessionLabel.textContent = "Session hors ligne";
     ui.sessionSubtitle.textContent =
-      "Connectez-vous pour accéder au formulaire.";
+      "Connectez-vous pour accéder au tableau de bord.";
   }
 };
 
 const setStatusPill = (text, variant = "idle") => {
   if (!ui.statusPill) return;
   ui.statusPill.textContent = text;
-  ui.statusPill.style.borderColor =
-    variant === "success"
-      ? "rgba(76,217,100,0.6)"
-      : variant === "error"
-      ? "rgba(255,69,58,0.6)"
-      : "rgba(255,255,255,0.35)";
-  ui.statusPill.style.color =
-    variant === "success"
-      ? "rgba(76,217,100,0.9)"
-      : variant === "error"
-      ? "rgba(255,99,71,0.9)"
-      : "#fff";
+  const colors = {
+    success: { border: "rgba(76,217,100,0.6)", text: "rgba(76,217,100,0.9)" },
+    error: { border: "rgba(255,69,58,0.6)", text: "rgba(255,99,71,0.9)" },
+    idle: { border: "rgba(255,255,255,0.35)", text: "#fff" },
+  };
+  const palette = colors[variant] || colors.idle;
+  ui.statusPill.style.borderColor = palette.border;
+  ui.statusPill.style.color = palette.text;
 };
 
 const toggleLoading = (form, isLoading, button) => {
@@ -144,9 +151,180 @@ const buildListingPayload = (formData, userId) => {
     agencyPhone: getText(formData, "agencyPhone"),
     imageURL: imageURLs.length ? imageURLs[0] : null,
     imageURLs: imageURLs.length ? imageURLs : null,
-    createdAt: serverTimestamp(),
     userId,
   };
+};
+
+const toDate = (value) => {
+  if (!value) return null;
+  if (typeof value.toDate === "function") {
+    return value.toDate();
+  }
+  return value instanceof Date ? value : new Date(value);
+};
+
+const formatDate = (value) => {
+  const date = toDate(value);
+  if (!date || Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const formatPrice = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "—";
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(num);
+};
+
+const renderListings = (items = []) => {
+  if (!ui.listingsContainer) return;
+  ui.listingsContainer.innerHTML = "";
+  if (ui.listingCount) {
+    ui.listingCount.textContent =
+      items.length <= 1 ? `${items.length} annonce` : `${items.length} annonces`;
+  }
+
+  if (!items.length) {
+    ui.listingsContainer.innerHTML =
+      '<p class="empty-state">Aucune annonce pour le moment.</p>';
+    return;
+  }
+
+  items.forEach((listing) => {
+    const row = document.createElement("div");
+    row.className = "listing-row";
+
+    const createdLabel = formatDate(listing.createdAt);
+    const meta = [
+      [listing.city, listing.postalCode].filter(Boolean).join(" "),
+      listing.type,
+      `${listing.surface ?? 0} m²`,
+    ]
+      .filter(Boolean)
+      .join(" • ");
+
+    row.innerHTML = `
+      <div class="listing-info">
+        <p class="listing-title">${listing.title || "Sans titre"}</p>
+        <p class="listing-meta">${meta || "—"}</p>
+        <p class="listing-meta">${formatPrice(listing.price)} • Ajoutée le ${createdLabel}</p>
+      </div>
+      <div class="listing-actions">
+        <button type="button" class="ghost-btn" data-edit>Modifier</button>
+        <button type="button" class="danger-btn" data-delete>Supprimer</button>
+      </div>
+    `;
+
+    row.querySelector("[data-edit]")?.addEventListener("click", () =>
+      loadListingIntoForm(listing)
+    );
+    row.querySelector("[data-delete]")?.addEventListener("click", () =>
+      handleDeleteListing(listing)
+    );
+
+    ui.listingsContainer.appendChild(row);
+  });
+};
+
+const startListingsListener = () => {
+  if (unsubscribeListings) {
+    unsubscribeListings();
+  }
+  const listingsRef = collection(db, "listings");
+  const listingsQuery = query(listingsRef, orderBy("createdAt", "desc"));
+  unsubscribeListings = onSnapshot(
+    listingsQuery,
+    (snapshot) => {
+      const items = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
+      renderListings(items);
+    },
+    (error) => {
+      console.error(error);
+      showToast(
+        "Chargement impossible",
+        error.message || "Vérifiez vos règles Firestore.",
+        "error"
+      );
+    }
+  );
+};
+
+const stopListingsListener = () => {
+  if (unsubscribeListings) {
+    unsubscribeListings();
+    unsubscribeListings = null;
+  }
+  renderListings([]);
+};
+
+const loadListingIntoForm = (listing) => {
+  if (!ui.listingForm) return;
+  const { elements } = ui.listingForm;
+
+  const setValue = (name, value = "") => {
+    const field = elements.namedItem(name);
+    if (!field) return;
+    field.value = value ?? "";
+  };
+
+  setValue("title", listing.title || "");
+  setValue("price", listing.price ?? "");
+  setValue("surface", listing.surface ?? "");
+  setValue("city", listing.city || "");
+  setValue("postalCode", listing.postalCode || "");
+  setValue("address", listing.address || "");
+  setValue("type", listing.type || "T2");
+  setValue("description", listing.description || "");
+  setValue("agencyName", listing.agencyName || "");
+  setValue("agencyEmail", listing.agencyEmail || "");
+  setValue("agencyPhone", listing.agencyPhone || "");
+
+  const imageField = elements.namedItem("imageURLs");
+  if (imageField) {
+    const urls =
+      Array.isArray(listing.imageURLs) && listing.imageURLs.length
+        ? listing.imageURLs
+        : listing.imageURL
+        ? [listing.imageURL]
+        : [];
+    imageField.value = urls.join("\n");
+  }
+
+  editingListingId = listing.id;
+  if (ui.submitBtn) {
+    ui.submitBtn.textContent = "Mettre à jour l'annonce";
+  }
+  if (ui.formSubtitle) {
+    ui.formSubtitle.textContent = `Modification de « ${
+      listing.title || "Annonce"
+    } »`;
+  }
+  setStatusPill("Modification en cours", "idle");
+  ui.listingForm.scrollIntoView({ behavior: "smooth", block: "center" });
+};
+
+const resetFormState = () => {
+  if (ui.listingForm) {
+    ui.listingForm.reset();
+  }
+  editingListingId = null;
+  if (ui.submitBtn) {
+    ui.submitBtn.textContent = "Publier l'annonce";
+  }
+  if (ui.formSubtitle) {
+    ui.formSubtitle.textContent = "Créez ou mettez à jour une annonce.";
+  }
+  setStatusPill("Brouillon");
 };
 
 const handleLogin = async (event) => {
@@ -155,8 +333,6 @@ const handleLogin = async (event) => {
   const formData = new FormData(ui.loginForm);
   const email = formData.get("email");
   const password = formData.get("password");
-  ui.loginBtn.dataset.default =
-    ui.loginBtn.dataset.default || ui.loginBtn.textContent;
   toggleLoading(ui.loginForm, true, ui.loginBtn);
   try {
     await signInWithEmailAndPassword(auth, email, password);
@@ -175,6 +351,7 @@ const handleLogin = async (event) => {
 const handleLogout = async () => {
   try {
     await signOut(auth);
+    resetFormState();
     showToast("Déconnecté", "Vous pouvez fermer l'onglet en toute sécurité.");
   } catch (error) {
     showToast(
@@ -195,22 +372,29 @@ const handleListingSubmit = async (event) => {
   }
 
   const formData = new FormData(ui.listingForm);
-  ui.submitBtn.dataset.default =
-    ui.submitBtn.dataset.default || ui.submitBtn.textContent;
   toggleLoading(ui.listingForm, true, ui.submitBtn);
   setStatusPill("Envoi...", "idle");
 
   try {
     const payload = buildListingPayload(formData, auth.currentUser.uid);
-    await addDoc(collection(db, "listings"), payload);
-    ui.listingForm.reset();
-    setStatusPill("Annonce publiée", "success");
-    showToast("Succès", "Annonce ajoutée à Firestore.");
+    if (editingListingId) {
+      const docRef = doc(db, "listings", editingListingId);
+      await updateDoc(docRef, { ...payload, updatedAt: serverTimestamp() });
+      showToast("Annonce mise à jour", "Les modifications sont sauvegardées.");
+    } else {
+      await addDoc(collection(db, "listings"), {
+        ...payload,
+        createdAt: serverTimestamp(),
+      });
+      showToast("Succès", "Annonce ajoutée à Firestore.");
+    }
+    resetFormState();
+    setStatusPill("Annonce synchronisée", "success");
   } catch (error) {
     console.error(error);
     setStatusPill("Erreur", "error");
     showToast(
-      "Publication impossible",
+      editingListingId ? "Mise à jour impossible" : "Publication impossible",
       error.message || "Merci de vérifier les champs.",
       "error"
     );
@@ -219,9 +403,30 @@ const handleListingSubmit = async (event) => {
   }
 };
 
+const handleDeleteListing = async (listing) => {
+  if (!listing?.id) return;
+  const confirmation = confirm(
+    `Supprimer l'annonce "${listing.title || listing.id}" ?`
+  );
+  if (!confirmation) return;
+  try {
+    await deleteDoc(doc(db, "listings", listing.id));
+    showToast("Annonce supprimée", "Elle n'apparaîtra plus dans l'app.");
+    if (editingListingId === listing.id) {
+      resetFormState();
+    }
+  } catch (error) {
+    console.error(error);
+    showToast(
+      "Suppression impossible",
+      error.message || "Vérifiez vos permissions.",
+      "error"
+    );
+  }
+};
+
 const handleReset = () => {
-  ui.listingForm?.reset();
-  setStatusPill("Brouillon");
+  resetFormState();
 };
 
 const init = () => {
@@ -243,11 +448,14 @@ const init = () => {
     if (ui.logoutBtn) {
       ui.logoutBtn.hidden = !user;
     }
+
     if (user) {
-      showView("form");
+      showView("dashboard");
       setStatusPill("Brouillon");
+      startListingsListener();
     } else {
       showView("login");
+      stopListingsListener();
     }
   });
 };

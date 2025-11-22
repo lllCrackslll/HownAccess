@@ -9,6 +9,7 @@ Interface web légère pour créer des annonces Firestore dans le même esprit v
 - Gestion simple des images via une liste d'URL (compatible avec les champs `imageURL` et `imageURLs` de l'app mobile).
 - Feedback immédiat (toast de succès/erreur, états de chargement, badge de session).
 - UI cohérente avec l'application : fond dégradé, cartes translucides, typographie soignée.
+- Tableau de bord minimaliste avec liste temps réel des annonces, édition et suppression en un clic.
 
 ## Structure
 

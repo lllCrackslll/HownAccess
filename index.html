@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hown • Portail annonces</title>
+    <title>Hown • Gestion des annonces</title>
     <meta
       name="description"
-      content="Interface web Hown pour ajouter des annonces dans Firestore."
+      content="Interface interne Hown pour créer, modifier ou supprimer des annonces Firestore."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,256 +17,205 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="bg-gradient" aria-hidden="true"></div>
     <main class="app-shell">
-      <section class="panel hero-panel">
-        <p class="eyebrow">Dashboard Hown</p>
-        <h1>
-          Publiez vos annonces
-          <span>en quelques secondes</span>
-        </h1>
-        <p class="intro">
-          Un portail web minimaliste, pensé pour l'équipe Hown, afin d'alimenter
-          la base Firestore en gardant la même identité que l'application iOS.
-        </p>
-
-        <ul class="hero-checklist">
-          <li>
-            <span>01</span>
-            <div>
-              <h3>Connexion sécurisée</h3>
-              <p>Authentification Firebase Email/Password déjà en place.</p>
-            </div>
-          </li>
-          <li>
-            <span>02</span>
-            <div>
-              <h3>Formulaire complet</h3>
-              <p>Tous les champs du modèle `Listing` avec validations.</p>
-            </div>
-          </li>
-          <li>
-            <span>03</span>
-            <div>
-              <h3>Style Hown</h3>
-              <p>Dégradé, cartes translucides et typographie cohérente.</p>
-            </div>
-          </li>
-        </ul>
-
-        <div class="hero-footer">
-          <div>
-            <p class="footer-title">Préparation</p>
-            <p>
-              Copiez <code>config.sample.js</code> en
-              <code>config.js</code> puis renseignez vos clés Firebase Web.
-            </p>
-          </div>
-          <div>
-            <p class="footer-title">Déploiement</p>
-            <p>
-              Hébergez simplement ces fichiers sur GitHub Pages ou sur un
-              stockage statique.
-            </p>
-          </div>
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">Espace interne</p>
+          <h1>Hown</h1>
         </div>
+        <div class="session-block">
+          <p class="session-label" data-session-label>Session hors ligne</p>
+          <p class="session-subtitle" data-session-subtitle>
+            Connectez-vous pour accéder au tableau de bord
+          </p>
+        </div>
+        <button class="ghost-btn" id="logoutBtn" type="button" hidden>
+          Déconnexion
+        </button>
+      </header>
+
+      <section class="panel auth-panel" data-view="login">
+        <h2>Connexion</h2>
+        <p class="card-lead">Identifiants internes Hown uniquement.</p>
+        <form id="loginForm" class="form">
+          <label class="field">
+            <span>Email</span>
+            <input
+              type="email"
+              name="email"
+              placeholder="acces@hown.fr"
+              autocomplete="username"
+              required
+            />
+          </label>
+          <label class="field">
+            <span>Mot de passe</span>
+            <input
+              type="password"
+              name="password"
+              placeholder="••••••••"
+              autocomplete="current-password"
+              required
+            />
+          </label>
+          <button class="primary-btn" type="submit" data-login-btn>
+            Se connecter
+          </button>
+        </form>
       </section>
 
-      <section class="panel form-panel">
-        <header class="form-header">
-          <div>
-            <p class="session-label" data-session-label>Session hors ligne</p>
-            <p class="session-subtitle" data-session-subtitle>
-              Connectez-vous pour accéder au formulaire
-            </p>
-          </div>
-          <button class="ghost-btn" id="logoutBtn" type="button" hidden>
-            Déconnexion
-          </button>
-        </header>
-
-        <article class="card" data-view="login">
-          <h2>Espace sécurisé</h2>
-          <p class="card-lead">
-            Utilisez les mêmes identifiants que sur l'application Hown.
-          </p>
-          <form id="loginForm" class="form">
-            <label class="field">
-              <span>Email professionnel</span>
-              <input
-                type="email"
-                name="email"
-                placeholder="vous@hown.app"
-                autocomplete="username"
-                required
-              />
-            </label>
-            <label class="field">
-              <span>Mot de passe</span>
-              <input
-                type="password"
-                name="password"
-                placeholder="••••••••"
-                autocomplete="current-password"
-                required
-              />
-            </label>
-            <button class="primary-btn" type="submit" data-login-btn>
-              Continuer
-            </button>
-          </form>
-        </article>
-
-        <article class="card" data-view="form" hidden>
-          <div class="form-headline">
+      <section class="dashboard" data-view="dashboard" hidden>
+        <article class="panel form-panel">
+          <div class="panel-head">
             <div>
               <h2>Nouvelle annonce</h2>
-              <p>Complétez tous les champs pour publier immédiatement.</p>
+              <p data-form-subtitle>Créez ou mettez à jour une annonce.</p>
             </div>
             <span class="pill" data-status-pill>Brouillon</span>
           </div>
 
           <form id="listingForm" class="form-grid">
-            <section>
-              <p class="section-title">Informations principales</p>
-              <label class="field">
-                <span>Titre de l'annonce</span>
-                <input
-                  type="text"
-                  name="title"
-                  placeholder="Appartement lumineux Oberkampf"
-                  required
-                />
-              </label>
-              <div class="field-row">
-                <label class="field">
-                  <span>Prix (€ / mois)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="50"
-                    name="price"
-                    placeholder="1350"
-                    required
-                  />
-                </label>
-                <label class="field">
-                  <span>Surface (m²)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    name="surface"
-                    placeholder="42"
-                    required
-                  />
-                </label>
-              </div>
-              <div class="field-row">
-                <label class="field">
-                  <span>Ville</span>
-                  <input
-                    type="text"
-                    name="city"
-                    placeholder="Paris"
-                    required
-                  />
-                </label>
-                <label class="field">
-                  <span>Code postal</span>
-                  <input
-                    type="text"
-                    name="postalCode"
-                    pattern="\d{4,6}"
-                    placeholder="75011"
-                    required
-                  />
-                </label>
-              </div>
-              <label class="field">
-                <span>Adresse</span>
-                <input
-                  type="text"
-                  name="address"
-                  placeholder="Rue Oberkampf"
-                  required
-                />
-              </label>
-              <label class="field">
-                <span>Type</span>
-                <select name="type" required>
-                  <option value="T1">T1</option>
-                  <option value="T2" selected>T2</option>
-                  <option value="T3">T3</option>
-                  <option value="T4">T4</option>
-                  <option value="T5+">T5+</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Description</span>
-                <textarea
-                  name="description"
-                  rows="4"
-                  placeholder="Exposez les points forts, la localisation, etc."
-                  required
-                ></textarea>
-              </label>
-            </section>
-
-            <section>
-              <p class="section-title">Agence & médias</p>
-              <label class="field">
-                <span>Nom de l'agence</span>
-                <input
-                  type="text"
-                  name="agencyName"
-                  placeholder="UrbanNest"
-                  required
-                />
-              </label>
-              <label class="field">
-                <span>Email agence</span>
-                <input
-                  type="email"
-                  name="agencyEmail"
-                  placeholder="contact@urbannest.fr"
-                  required
-                />
-              </label>
-              <label class="field">
-                <span>Téléphone</span>
-                <input
-                  type="tel"
-                  name="agencyPhone"
-                  placeholder="+33 6 12 34 56 78"
-                  required
-                />
-              </label>
-              <label class="field">
-                <span>URLs des images (séparées par un retour à la ligne)</span>
-                <textarea
-                  name="imageURLs"
-                  rows="4"
-                  placeholder="https://cdn.../photo-1.jpg"
-                ></textarea>
-              </label>
-              <div class="form-actions">
-                <button class="ghost-btn" type="button" data-reset-btn>
-                  Réinitialiser
-                </button>
-                <button class="primary-btn" type="submit" data-submit-btn>
-                  Publier l'annonce
-                </button>
-              </div>
-            </section>
+            <label class="field">
+              <span>Titre</span>
+              <input
+                type="text"
+                name="title"
+                placeholder="Appartement lumineux Oberkampf"
+                required
+              />
+            </label>
+            <label class="field">
+              <span>Prix (€ / mois)</span>
+              <input
+                type="number"
+                min="0"
+                step="50"
+                name="price"
+                placeholder="1350"
+                required
+              />
+            </label>
+            <label class="field">
+              <span>Surface (m²)</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                name="surface"
+                placeholder="42"
+                required
+              />
+            </label>
+            <label class="field">
+              <span>Ville</span>
+              <input
+                type="text"
+                name="city"
+                placeholder="Paris"
+                required
+              />
+            </label>
+            <label class="field">
+              <span>Code postal</span>
+              <input
+                type="text"
+                name="postalCode"
+                pattern="\d{4,6}"
+                placeholder="75011"
+                required
+              />
+            </label>
+            <label class="field">
+              <span>Adresse</span>
+              <input
+                type="text"
+                name="address"
+                placeholder="Rue Oberkampf"
+                required
+              />
+            </label>
+            <label class="field">
+              <span>Type</span>
+              <select name="type" required>
+                <option value="T1">T1</option>
+                <option value="T2" selected>T2</option>
+                <option value="T3">T3</option>
+                <option value="T4">T4</option>
+                <option value="T5+">T5+</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Description</span>
+              <textarea
+                name="description"
+                rows="3"
+                placeholder="Exposez les points forts, la localisation, etc."
+                required
+              ></textarea>
+            </label>
+            <label class="field">
+              <span>Nom de l'agence</span>
+              <input
+                type="text"
+                name="agencyName"
+                placeholder="UrbanNest"
+                required
+              />
+            </label>
+            <label class="field">
+              <span>Email agence</span>
+              <input
+                type="email"
+                name="agencyEmail"
+                placeholder="contact@urbannest.fr"
+                required
+              />
+            </label>
+            <label class="field">
+              <span>Téléphone</span>
+              <input
+                type="tel"
+                name="agencyPhone"
+                placeholder="+33 6 12 34 56 78"
+                required
+              />
+            </label>
+            <label class="field full-row">
+              <span>URLs des images (une par ligne)</span>
+              <textarea
+                name="imageURLs"
+                rows="3"
+                placeholder="https://cdn.../photo-1.jpg"
+              ></textarea>
+            </label>
+            <div class="form-actions full-row">
+              <button class="ghost-btn" type="button" data-reset-btn>
+                Annuler
+              </button>
+              <button class="primary-btn" type="submit" data-submit-btn>
+                Publier l'annonce
+              </button>
+            </div>
           </form>
         </article>
 
-        <div class="toast" data-toast hidden>
-          <p class="toast-title" data-toast-title></p>
-          <p data-toast-message></p>
-        </div>
+        <article class="panel list-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Annonces existantes</h2>
+              <p data-listing-count>0 annonce</p>
+            </div>
+          </div>
+          <div class="listing-list" data-listings>
+            <p class="empty-state">Aucune annonce pour le moment.</p>
+          </div>
+        </article>
       </section>
+
+      <div class="toast" data-toast hidden>
+        <p class="toast-title" data-toast-title></p>
+        <p data-toast-message></p>
+      </div>
     </main>
 
     <script type="module" src="./app.js"></script>
