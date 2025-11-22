@@ -30,16 +30,9 @@ hown-admin-web/
 
 ## Configuration
 
-1. Copier `config.sample.js` vers `config.js`.
-2. Remplir `config.js` avec la configuration Web obtenue dans la console Firebase (`Paramètres du projet > Vos applis > Web`).
+1. Ouvrir `config.js` et renseigner les valeurs fournies par la console Firebase (`Paramètres du projet > Vos applis > Web`). Le fichier est désormais versionné afin d'être servi sur un hébergement statique (Vercel, GitHub Pages, etc.).
+2. Si vous préférez garder vos identifiants hors Git, copiez `config.sample.js` en local, remettez `config.js` dans `.gitignore`, puis déposez manuellement le fichier sur votre hébergeur.
 3. Vérifier les règles Firestore pour autoriser la création d'annonces par l'utilisateur qui se connectera via ce portail.
-
-```bash
-cp config.sample.js config.js
-# puis éditer les valeurs
-```
-
-⚠️ `config.js` est ignoré par Git pour éviter d'exposer vos clés Firebase.
 
 ## Lancer en local
 
